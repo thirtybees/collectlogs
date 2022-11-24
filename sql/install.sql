@@ -64,3 +64,6 @@ VALUES("/^Fatal Error: Allowed memory size of ([0-9]+) bytes exhausted \\(tried 
 
 INSERT INTO PREFIX_collectlogs_convert_message(`search`, `replace`)
 VALUES("/^include.*: *Failed.*/", "include: Failed to open file");
+
+INSERT INTO PREFIX_collectlogs_convert_message(`search`, `replace`)
+VALUES("/^imagejpeg.*failed to open stream: No such file or directory.*/", "imagejpeg: failed to open stream: No such file or directory");
