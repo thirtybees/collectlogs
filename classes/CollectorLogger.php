@@ -296,10 +296,13 @@ class CollectLogLogger extends AbstractLogger
             $found = false;
             $prev = [];
             foreach ($stackTrace as $trace) {
+                $class = $trace['class'] ?? '';
+                $type = $trace['type'] ?? '';
+                $function = $trace['function'] ?? '';
                 if (! $found) {
-                    if ($trace['class'] != 'CollectLogsModule\CollectLogLogger' &&
-                        $trace['class'] != 'Psr\Log\AbstractLogger' &&
-                        $trace['class'] != 'Thirtybees\Core\Error\ErrorHandlerCore'
+                    if ($class !== 'CollectLogsModule\CollectLogLogger' &&
+                        $class !== 'Psr\Log\AbstractLogger' &&
+                        $class !== 'Thirtybees\Core\Error\ErrorHandlerCore'
                     ) {
                         $found = true;
                         $separator = str_repeat(' ', $separatorLen - 1);
@@ -312,8 +315,8 @@ class CollectLogLogger extends AbstractLogger
                     $len = strlen("$cnt");
                     $separator = str_repeat(' ', $separatorLen - $len);
                     $result .= $this->getLocation($trace, $cnt, $separator) . ': ';
-                    $result .= $trace['class'] . $trace['type'] . $trace['function'] . '(';
-                    if ($trace['args']) {
+                    $result .= $class . $type . $function . '(';
+                    if (isset($trace['args']) && $trace['args']) {
                         $args = array_map(function ($param) {
                             return strtok(ErrorUtils::displayArgument($param), "\n");
                         }, $trace['args']);
