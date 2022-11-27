@@ -61,6 +61,13 @@ class AdminCollectLogsBackendController extends ModuleAdminController
         $this->_join .= " INNER JOIN ($join) AS extra ON (extra.id_collectlogs_logs = a.id_collectlogs_logs)";
 
         $this->actions = ['view', 'delete'];
+        $this->bulk_actions = [
+            'delete' => [
+                'text' => $this->l('Delete selected'),
+                'confirm' => $this->l('Delete selected items?'),
+                'icon' => 'icon-trash',
+            ]
+        ];
 
         $this->fields_list = [
             'type' => [
@@ -120,6 +127,21 @@ class AdminCollectLogsBackendController extends ModuleAdminController
         return $ret;
     }
 
+    protected function processBulkDelete()
+    {
+        if (is_array($this->boxes) && !empty($this->boxes)) {
+            $deleted = false;
+            foreach ($this->boxes as $id) {
+                $conn = Db::getInstance();
+                $ret = (
+                    $conn->delete('collectlogs_stats', 'id_collectlogs_logs = '.$id) &&
+                    $conn->delete('collectlogs_extra', 'id_collectlogs_logs = '.$id) &&
+                    $conn->delete('collectlogs_logs', 'id_collectlogs_logs = '.$id)
+                );
+            }
+            $this->deleted = $deleted;
+        }
+    }
 
     /**
      * @return string
