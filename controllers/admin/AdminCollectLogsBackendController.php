@@ -61,6 +61,13 @@ class AdminCollectLogsBackendController extends ModuleAdminController
         $this->_join .= " INNER JOIN ($join) AS extra ON (extra.id_collectlogs_logs = a.id_collectlogs_logs)";
 
         $this->actions = ['view', 'delete'];
+        $this->bulk_actions = [
+            'delete' => [
+                'text' => $this->l('Delete selected'),
+                'confirm' => $this->l('Delete selected items?'),
+                'icon' => 'icon-trash',
+            ]
+        ];
 
         $this->fields_list = [
             'type' => [
@@ -99,6 +106,8 @@ class AdminCollectLogsBackendController extends ModuleAdminController
     }
 
     /**
+     * Process delete single log entry
+     *
      * @return bool
      * @throws PrestaShopDatabaseException
      * @throws PrestaShopException
@@ -106,20 +115,51 @@ class AdminCollectLogsBackendController extends ModuleAdminController
     public function processDelete()
     {
         $id = (int)Tools::getValue($this->identifier);
-        $conn = Db::getInstance();
-        $ret = (
-            $conn->delete('collectlogs_stats', 'id_collectlogs_logs = ' . $id) &&
-            $conn->delete('collectlogs_extra', 'id_collectlogs_logs = ' . $id) &&
-            $conn->delete('collectlogs_logs', 'id_collectlogs_logs = ' . $id)
-        );
-        if ($ret) {
+        $result = $this->deleteLog($id);
+        if ($result) {
             $this->redirect_after = static::$currentIndex . '&conf=1&token=' . $this->token;
         } else {
             $this->errors[] = Tools::displayError('Failed to delete log');
         }
-        return $ret;
+        return $result;
     }
 
+    /**
+     * Process bulk delete action
+     *
+     * @return bool
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     */
+    protected function processBulkDelete()
+    {
+        $result = true;
+        if (is_array($this->boxes) && !empty($this->boxes)) {
+            foreach ($this->boxes as $id) {
+                $result = $this->deleteLog($id) && $result;
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Delete single log entry
+     *
+     * @param $id
+     * @return bool
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     */
+    protected function deleteLog($id)
+    {
+        $id = (int)$id;
+        $conn = Db::getInstance();
+        return (
+            $conn->delete('collectlogs_stats', 'id_collectlogs_logs = ' . $id) &&
+            $conn->delete('collectlogs_extra', 'id_collectlogs_logs = ' . $id) &&
+            $conn->delete('collectlogs_logs', 'id_collectlogs_logs = ' . $id)
+        );
+    }
 
     /**
      * @return string
