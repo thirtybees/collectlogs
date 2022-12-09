@@ -67,3 +67,6 @@ VALUES("/^include.*: *Failed.*/", "include: Failed to open file");
 
 INSERT INTO PREFIX_collectlogs_convert_message(`search`, `replace`)
 VALUES("/^imagejpeg.*failed to open stream: No such file or directory.*/", "imagejpeg: failed to open stream: No such file or directory");
+
+INSERT INTO PREFIX_collectlogs_convert_message(`search`, `replace`)
+VALUES("/^rmdir.*Directory not empty.*/", "rmdir(): Directory not empty");
