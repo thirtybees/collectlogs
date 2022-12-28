@@ -40,7 +40,6 @@ class CollectLogsCronModuleFrontController extends ModuleFrontController
     public $module;
 
     /**
-     * @throws HTMLPurifier_Exception
      * @throws PrestaShopException
      */
     public function initContent()

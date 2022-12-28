@@ -19,6 +19,7 @@
 
 namespace CollectLogsModule;
 
+use Context;
 use Db;
 use DbQuery;
 use PrestaShopException;
@@ -107,7 +108,7 @@ class CollectLogLogger extends AbstractLogger
                         'content' => $params
                     ];
                 }
-                $cookie = \Context::getContext()->cookie;
+                $cookie = Context::getContext()->cookie;
                 $params = "";
                 foreach ($cookie->getAll() as $param => $value) {
                     $params .= "  [$param]: " . ErrorUtils::displayArgument($value) . "\n";
@@ -285,6 +286,9 @@ class CollectLogLogger extends AbstractLogger
         return $this->messageConvertRegexp;
     }
 
+    /**
+     * @return string
+     */
     protected function getStackTrace()
     {
         $result = '';
@@ -332,6 +336,13 @@ class CollectLogLogger extends AbstractLogger
         return $result;
     }
 
+    /**
+     * @param $entry
+     * @param $cnt
+     * @param $separator
+     *
+     * @return string
+     */
     protected function getLocation($entry, $cnt, $separator)
     {
         $prefix = '#' . $cnt . $separator;

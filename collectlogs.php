@@ -26,6 +26,12 @@ use Thirtybees\Core\DependencyInjection\ServiceLocator;
 class CollectLogs extends Module
 {
 
+    // configuration keys
+    const CRON_SECRET = 'COLLECTLOGS_CRON_SECRET';
+    const LAST_CRON_EXECUTION = 'COLLECTLOGS_CRON_TS';
+    const SEND_NEW_ERRORS_EMAIL = 'COLLECTLOGS_SEND_NEW_ERRORS_EMAIL';
+    const NEW_ERRORS_EMAIL_ADDRESSES = 'COLLECTLOGS_NEW_ERRORS_EMAIL';
+
     public function __construct()
     {
         $this->name = 'collectlogs';
@@ -117,7 +123,8 @@ class CollectLogs extends Module
     }
 
     /**
-     * @return int
+     * @return bool
+     *
      * @throws PrestaShopDatabaseException
      * @throws PrestaShopException
      */
@@ -136,6 +143,7 @@ class CollectLogs extends Module
 
     /**
      * @return bool
+     *
      * @throws PrestaShopDatabaseException
      * @throws PrestaShopException
      */
@@ -149,6 +157,7 @@ class CollectLogs extends Module
 
     /**
      * @return int
+     *
      * @throws PrestaShopDatabaseException
      * @throws PrestaShopException
      */
@@ -227,14 +236,13 @@ class CollectLogs extends Module
      * @return string
      * @throws PrestaShopException
      * @throws SmartyException
-     * @throws HTMLPurifier_Exception
      */
     public function getContent()
     {
         if (Tools::isSubmit('submitSettings')) {
-            Configuration::updateGlobalValue('COLLECTLOGS_SEND_NEW_ERRORS_EMAIL', (int)Tools::getValue('COLLECTLOGS_SEND_NEW_ERRORS_EMAIL'));
-            $emailAddresses = static::extractValidEmails(Tools::getValue('COLLECTLOGS_NEW_ERRORS_EMAIL'));
-            Configuration::updateGlobalValue('COLLECTLOGS_NEW_ERRORS_EMAIL', implode("\n", $emailAddresses));
+            Configuration::updateGlobalValue(static::SEND_NEW_ERRORS_EMAIL, (int)Tools::getValue(static::SEND_NEW_ERRORS_EMAIL));
+            $emailAddresses = static::extractValidEmails(Tools::getValue(static::NEW_ERRORS_EMAIL_ADDRESSES));
+            Configuration::updateGlobalValue(static::NEW_ERRORS_EMAIL_ADDRESSES, implode("\n", $emailAddresses));
         }
         $cronUrl = $this->context->link->getModuleLink($this->name, 'cron', [
             'secure_key' => $this->getCronSecret()
@@ -251,7 +259,7 @@ class CollectLogs extends Module
                         'type' => 'switch',
                         'label' => $this->l('Send email with new errors summary'),
                         'desc' => $this->l('When enabled, cron job will send email with new detected errors'),
-                        'name' => 'COLLECTLOGS_SEND_NEW_ERRORS_EMAIL',
+                        'name' => static::SEND_NEW_ERRORS_EMAIL,
                         'is_bool' => true,
                         'values' => [
                             [
@@ -270,14 +278,14 @@ class CollectLogs extends Module
                         'type' => 'textarea',
                         'label' => $this->l('Email addressess'),
                         'rows' => 3,
-                        'name' => 'COLLECTLOGS_NEW_ERRORS_EMAIL',
+                        'name' => static::NEW_ERRORS_EMAIL_ADDRESSES,
                         'desc' => $this->l('Email addresses of people that should receive email with new errors. Enter each address on separate line!'),
                     ],
                     [
                         'type' => 'html',
                         'label' => $this->l('Cron URL'),
                         'name' => 'COLLECTLOGS_CRON_URL',
-                        'html_content' => "<pre>$cronUrl</pre>",
+                        'html_content' => "<code style='display:block;margin-top:7px'>$cronUrl</code>",
                     ]
                 ],
                 'submit' => [
@@ -285,6 +293,9 @@ class CollectLogs extends Module
                 ],
             ],
         ];
+
+        /** @var AdminController $controller */
+        $controller = $this->context->controller;
 
         $helper = new HelperForm();
         $helper->module = $this;
@@ -298,21 +309,20 @@ class CollectLogs extends Module
         $helper->submit_action = 'submitSettings';
         $helper->currentIndex = $this->context->link->getAdminLink('AdminModules', false).'&configure='.$this->name.'&tab_module='.$this->tab.'&module_name='.$this->name;
         $helper->token = Tools::getAdminTokenLite('AdminModules');
-        $helper->tpl_vars = [
-            'fields_value' => [
-                'COLLECTLOGS_SEND_NEW_ERRORS_EMAIL' => Configuration::getGlobalValue('COLLECTLOGS_SEND_NEW_ERRORS_EMAIL'),
-                'COLLECTLOGS_NEW_ERRORS_EMAIL' => Configuration::getGlobalValue('COLLECTLOGS_NEW_ERRORS_EMAIL'),
-            ],
-            'languages' => $this->context->controller->getLanguages(),
-            'id_language' => $this->context->language->id
+        $helper->languages = $controller->getLanguages();
+        $helper->fields_value = [
+            static::SEND_NEW_ERRORS_EMAIL => Configuration::getGlobalValue(static::SEND_NEW_ERRORS_EMAIL),
+            static::NEW_ERRORS_EMAIL_ADDRESSES => Configuration::getGlobalValue(static::NEW_ERRORS_EMAIL_ADDRESSES),
         ];
 
-        return $helper->generateForm([$fieldsForm]);
+        return $helper->generateForm([
+            $fieldsForm
+        ]);
     }
 
     /**
      * @return void
-     * @throws HTMLPurifier_Exception
+     *
      * @throws PrestaShopException
      */
     public function processCron()
@@ -320,17 +330,17 @@ class CollectLogs extends Module
         if (! headers_sent()) {
             header('Content-Type: text/plain');
         }
-        if (! Configuration::getGlobalValue('COLLECTLOGS_SEND_NEW_ERRORS_EMAIL')) {
+        if (! Configuration::getGlobalValue(static::SEND_NEW_ERRORS_EMAIL)) {
             echo "Sending emails with new errors is disabled in module settings, exiting...\n";
             return;
         }
-        $emailAddresses = static::extractValidEmails(Configuration::getGlobalValue('COLLECTLOGS_NEW_ERRORS_EMAIL'));
+        $emailAddresses = static::extractValidEmails(Configuration::getGlobalValue(static::NEW_ERRORS_EMAIL_ADDRESSES));
         if (! $emailAddresses) {
             echo "No email address specified, exiting...\n";
             return;
         }
-        $lastExec = (int)Configuration::getGlobalValue('COLLECTLOGS_CRON_TS');
-        Configuration::updateGlobalValue('COLLECTLOGS_CRON_TS', time() - 1);
+        $lastExec = (int)Configuration::getGlobalValue(static::LAST_CRON_EXECUTION);
+        Configuration::updateGlobalValue(static::LAST_CRON_EXECUTION, time() - 1);
         $from = date('Y-m-d H:i:s', $lastExec);
         echo "Retrieving new errors since " . $from . "\n";
 
@@ -440,15 +450,14 @@ class CollectLogs extends Module
 
     /**
      * @return string
-     * @throws HTMLPurifier_Exception
      * @throws PrestaShopException
      */
     public function getCronSecret()
     {
-        $value = Configuration::getGlobalValue('COLLECTLOGS_CRON_SECRET');
+        $value = Configuration::getGlobalValue(static::CRON_SECRET);
         if (! $value) {
             $value = Tools::passwdGen(32);
-            Configuration::updateGlobalValue('COLLECTLOGS_CRON_SECRET', $value);
+            Configuration::updateGlobalValue(static::CRON_SECRET, $value);
         }
         return $value;
     }
