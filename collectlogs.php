@@ -18,7 +18,10 @@
  */
 
 use CollectLogsModule\CollectLogLogger;
+use CollectLogsModule\Settings;
 use Thirtybees\Core\DependencyInjection\ServiceLocator;
+
+require_once __DIR__ . '/classes/Settings.php';
 
 /**
  * Class CollectLogs
@@ -27,10 +30,11 @@ class CollectLogs extends Module
 {
 
     // configuration keys
-    const CRON_SECRET = 'COLLECTLOGS_CRON_SECRET';
-    const LAST_CRON_EXECUTION = 'COLLECTLOGS_CRON_TS';
-    const SEND_NEW_ERRORS_EMAIL = 'COLLECTLOGS_SEND_NEW_ERRORS_EMAIL';
-    const NEW_ERRORS_EMAIL_ADDRESSES = 'COLLECTLOGS_NEW_ERRORS_EMAIL';
+    const INPUT_SEND_NEW_ERRORS_EMAIL = 'SEND_NEW_ERRORS_EMAIL';
+    const INPUT_EMAIL_ADDRESSES = 'EMAIL_ADDRESSES';
+    const INPUT_LOG_TO_FILE = 'LOG_TO_FILE';
+    const INPUT_LOG_TO_FILE_NEW_ONLY = 'LOG_TO_FILE_NEW_ONLY';
+    const INPUT_LOG_TO_FILE_SEVERITY = 'LOG_TO_FILE_SEVERITY';
 
     public function __construct()
     {
@@ -78,6 +82,7 @@ class CollectLogs extends Module
     {
         return (
             $this->removeTab() &&
+            $this->getSettings()->cleanup() &&
             $this->uninstallDb($dropTables) &&
             parent::uninstall()
         );
@@ -216,7 +221,7 @@ class CollectLogs extends Module
     {
         if ($this->systemSupportsLogger()) {
             require_once __DIR__ . '/classes/CollectorLogger.php';
-            ServiceLocator::getInstance()->getErrorHandler()->addLogger(new CollectLogLogger());
+            ServiceLocator::getInstance()->getErrorHandler()->addLogger(new CollectLogLogger($this->getSettings()), true);
         }
     }
 
@@ -239,27 +244,102 @@ class CollectLogs extends Module
      */
     public function getContent()
     {
-        if (Tools::isSubmit('submitSettings')) {
-            Configuration::updateGlobalValue(static::SEND_NEW_ERRORS_EMAIL, (int)Tools::getValue(static::SEND_NEW_ERRORS_EMAIL));
-            $emailAddresses = static::extractValidEmails(Tools::getValue(static::NEW_ERRORS_EMAIL_ADDRESSES));
-            Configuration::updateGlobalValue(static::NEW_ERRORS_EMAIL_ADDRESSES, implode("\n", $emailAddresses));
-        }
+        $this->processPost();
+
+        $settings = $this->getSettings();
         $cronUrl = $this->context->link->getModuleLink($this->name, 'cron', [
-            'secure_key' => $this->getCronSecret()
+            'secure_key' => $settings->getCronSecret()
         ]);
 
-        $fieldsForm = [
+        $fileLoggingForm = [
             'form' => [
                 'legend' => [
-                    'title' => $this->l('Settings'),
-                    'icon' => 'icon-cogs'
+                    'title' => $this->l('File logging'),
+                    'icon' => 'icon-cogs',
                 ],
                 'input' => [
                     [
                         'type' => 'switch',
+                        'label' => $this->l('Log to file'),
+                        'desc' => $this->l('When enabled, errors will be saved inside log file as well'),
+                        'name' => static::INPUT_LOG_TO_FILE,
+                        'is_bool' => true,
+                        'values' => [
+                            [
+                                'id' => 'active_on',
+                                'value' => 1,
+                                'label' => $this->l('Enabled')
+                            ],
+                            [
+                                'id' => 'active_off',
+                                'value' => 0,
+                                'label' => $this->l('Disabled')
+                            ],
+                        ],
+                    ],
+                    [
+                        'type' => 'switch',
+                        'label' => $this->l('Log only new errors'),
+                        'desc' => $this->l('If enabled, only new error messages will be saved in error files'),
+                        'name' => static::INPUT_LOG_TO_FILE_NEW_ONLY,
+                        'is_bool' => true,
+                        'values' => [
+                            [
+                                'id' => 'active_on',
+                                'value' => 1,
+                                'label' => $this->l('Enabled')
+                            ],
+                            [
+                                'id' => 'active_off',
+                                'value' => 0,
+                                'label' => $this->l('Disabled')
+                            ],
+                        ],
+                    ],
+                    [
+                        'type' => 'select',
+                        'label' => $this->l('Severity level'),
+                        'desc' => $this->l('Select minimal severity level to log'),
+                        'name' => static::INPUT_LOG_TO_FILE_SEVERITY,
+                        'options' => [
+                            'id' => 'severity',
+                            'name' => 'name',
+                            'query' => [
+                                [ 'severity' => Settings::SEVERITY_ERROR, 'name' => $this->l('Error') ],
+                                [ 'severity' => Settings::SEVERITY_WARNING, 'name' => $this->l('Warning') ],
+                                [ 'severity' => Settings::SEVERITY_DEPRECATION, 'name' => $this->l('Deprecation') ],
+                                [ 'severity' => Settings::SEVERITY_NOTICE, 'name' => $this->l('Notice') ],
+                            ]
+                        ],
+                    ],
+
+                ],
+                'submit' => [
+                    'title' => $this->l('Save'),
+                ],
+            ],
+        ];
+
+        $cronForm = [
+            'form' => [
+                'legend' => [
+                    'title' => $this->l('Cron Settings'),
+                    'icon' => 'icon-cogs',
+                ],
+                'description' => $this->l('You can enable cron job that will send you summarized email with newly detected errors.'),
+                'input' => [
+                    [
+                        'type' => 'html',
+                        'label' => $this->l('Cron URL'),
+                        'name' => 'COLLECTLOGS_CRON_URL',
+                        'desc' => $this->l('Copy and paste this URL to your cron manager. Recommended frequency is every 15 minutes.'),
+                        'html_content' => "<code style='display:block;margin-top:7px'>$cronUrl</code>",
+                    ],
+                    [
+                        'type' => 'switch',
                         'label' => $this->l('Send email with new errors summary'),
                         'desc' => $this->l('When enabled, cron job will send email with new detected errors'),
-                        'name' => static::SEND_NEW_ERRORS_EMAIL,
+                        'name' => static::INPUT_SEND_NEW_ERRORS_EMAIL,
                         'is_bool' => true,
                         'values' => [
                             [
@@ -278,15 +358,9 @@ class CollectLogs extends Module
                         'type' => 'textarea',
                         'label' => $this->l('Email addressess'),
                         'rows' => 3,
-                        'name' => static::NEW_ERRORS_EMAIL_ADDRESSES,
+                        'name' => static::INPUT_EMAIL_ADDRESSES,
                         'desc' => $this->l('Email addresses of people that should receive email with new errors. Enter each address on separate line!'),
                     ],
-                    [
-                        'type' => 'html',
-                        'label' => $this->l('Cron URL'),
-                        'name' => 'COLLECTLOGS_CRON_URL',
-                        'html_content' => "<code style='display:block;margin-top:7px'>$cronUrl</code>",
-                    ]
                 ],
                 'submit' => [
                     'title' => $this->l('Save'),
@@ -301,9 +375,9 @@ class CollectLogs extends Module
         $helper->module = $this;
         $helper->show_toolbar = false;
         $helper->table = $this->table;
-        $lang = new Language((int) Configuration::get('PS_LANG_DEFAULT'));
+        $lang = new Language((int)Configuration::get('PS_LANG_DEFAULT'));
         $helper->default_form_language = $lang->id;
-        $helper->allow_employee_form_lang = Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG') ? Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG') : 0;
+        $helper->allow_employee_form_lang = (int)Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG');
 
         $helper->identifier = $this->identifier;
         $helper->submit_action = 'submitSettings';
@@ -311,12 +385,16 @@ class CollectLogs extends Module
         $helper->token = Tools::getAdminTokenLite('AdminModules');
         $helper->languages = $controller->getLanguages();
         $helper->fields_value = [
-            static::SEND_NEW_ERRORS_EMAIL => Configuration::getGlobalValue(static::SEND_NEW_ERRORS_EMAIL),
-            static::NEW_ERRORS_EMAIL_ADDRESSES => Configuration::getGlobalValue(static::NEW_ERRORS_EMAIL_ADDRESSES),
+            static::INPUT_SEND_NEW_ERRORS_EMAIL => $settings->getSendNewErrorsEmail(),
+            static::INPUT_EMAIL_ADDRESSES => implode("\n", $settings->getEmailAddresses()),
+            static::INPUT_LOG_TO_FILE => $settings->getLogToFile(),
+            static::INPUT_LOG_TO_FILE_NEW_ONLY => $settings->getLogToFileNewOnly(),
+            static::INPUT_LOG_TO_FILE_SEVERITY => $settings->getLogToFileMinSeverity(),
         ];
 
         return $helper->generateForm([
-            $fieldsForm
+            $fileLoggingForm,
+            $cronForm,
         ]);
     }
 
@@ -327,20 +405,21 @@ class CollectLogs extends Module
      */
     public function processCron()
     {
+        $settings = $this->getSettings();
         if (! headers_sent()) {
             header('Content-Type: text/plain');
         }
-        if (! Configuration::getGlobalValue(static::SEND_NEW_ERRORS_EMAIL)) {
+        if (! $settings->getSendNewErrorsEmail()) {
             echo "Sending emails with new errors is disabled in module settings, exiting...\n";
             return;
         }
-        $emailAddresses = static::extractValidEmails(Configuration::getGlobalValue(static::NEW_ERRORS_EMAIL_ADDRESSES));
+        $emailAddresses = $settings->getEmailAddresses();
         if (! $emailAddresses) {
             echo "No email address specified, exiting...\n";
             return;
         }
-        $lastExec = (int)Configuration::getGlobalValue(static::LAST_CRON_EXECUTION);
-        Configuration::updateGlobalValue(static::LAST_CRON_EXECUTION, time() - 1);
+        $lastExec = $settings->getCronLastExec();
+        $settings->updateCronLastExec();
         $from = date('Y-m-d H:i:s', $lastExec);
         echo "Retrieving new errors since " . $from . "\n";
 
@@ -449,16 +528,30 @@ class CollectLogs extends Module
     }
 
     /**
-     * @return string
+     * @return Settings
+     */
+    public function getSettings()
+    {
+        static $settings = null;
+        if ($settings === null) {
+            $settings = new Settings();
+        }
+        return $settings;
+    }
+
+    /**
+     * @return void
      * @throws PrestaShopException
      */
-    public function getCronSecret()
+    protected function processPost()
     {
-        $value = Configuration::getGlobalValue(static::CRON_SECRET);
-        if (! $value) {
-            $value = Tools::passwdGen(32);
-            Configuration::updateGlobalValue(static::CRON_SECRET, $value);
+        if (Tools::isSubmit('submitSettings')) {
+            $settings = $this->getSettings();
+            $settings->setSendNewErrorsEmail((bool)Tools::getValue(static::INPUT_SEND_NEW_ERRORS_EMAIL));
+            $settings->setEmailAddresses(static::extractValidEmails(Tools::getValue(static::INPUT_EMAIL_ADDRESSES)));
+            $settings->setLogToFile((bool)Tools::getValue(static::INPUT_LOG_TO_FILE));
+            $settings->setLogToFileNewOnly((bool)Tools::getValue(static::INPUT_LOG_TO_FILE_NEW_ONLY));
+            $settings->setLogToFileMinSeverity((int)Tools::getValue(static::INPUT_LOG_TO_FILE_SEVERITY));
         }
-        return $value;
     }
 }

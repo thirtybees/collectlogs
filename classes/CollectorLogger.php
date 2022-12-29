@@ -29,19 +29,33 @@ use Throwable;
 
 class CollectLogLogger extends AbstractLogger
 {
+    const SEVERITIES = [
+        'Fatal error' => Settings::SEVERITY_ERROR,
+        'Warning' => Settings::SEVERITY_WARNING,
+        'Notice' => Settings::SEVERITY_NOTICE,
+        'Deprecation' => Settings::SEVERITY_DEPRECATION,
+        'Unknown error' => Settings::SEVERITY_NOTICE,
+        'Exception' => Settings::SEVERITY_ERROR,
+    ];
+
+    /**
+     * @var Settings
+     */
+    protected $settings;
+
     /**
      * @var array
      */
     protected $messageConvertRegexp = null;
 
-    const SEVERITIES = [
-        'Fatal error' => 4,
-        'Warning' => 3,
-        'Notice' => 1,
-        'Deprecation' => 2,
-        'Unknown error' => 1,
-        'Exception' => 4,
-    ];
+    /**
+     * @param Settings $settings
+     */
+    public function __construct(Settings $settings)
+    {
+        $this->settings = $settings;
+    }
+
 
     /**
      * @param int $level
@@ -141,10 +155,10 @@ class CollectLogLogger extends AbstractLogger
     }
 
     /**
-     * @param $type
-     * @param $file
+     * @param string $type
+     * @param string $file
      * @param int $line
-     * @param $message
+     * @param string $message
      * @return string
      */
     protected function calculateUID($type, $file, int $line, $message)
@@ -163,10 +177,25 @@ class CollectLogLogger extends AbstractLogger
      * @param string $realFile
      * @param int $realLine
      * @param array $extra
+     *
      * @return void
+     * @throws PrestaShopException
      */
     protected function logMessageToFile($isNew, $uid, $type, $message, $file, int $line, bool $hasRealFile, $realFile, int $realLine, $extra)
     {
+        if (! $this->settings->getLogToFile()) {
+            return;
+        }
+
+        if ($this->settings->getLogToFileNewOnly() && !$isNew) {
+            return;
+        }
+
+        $severity = $this->getSeverity($type);
+        if ($severity < $this->settings->getLogToFileMinSeverity()) {
+            return;
+        }
+
         $newOld = $isNew ? 'NEW' : 'OLD';
         $formattedMessage = '[' . date('H:i:s.ss') . '] ['.$newOld.'] ['.$uid.'] [' . strtoupper($type) . '] ' . $message . " in file $file";
         if ($line) {
@@ -206,13 +235,13 @@ class CollectLogLogger extends AbstractLogger
 
     /**
      * @param string $uid
-     * @param $type
-     * @param $file
+     * @param string $type
+     * @param string $file
      * @param int $line
-     * @param $realFile
+     * @param string $realFile
      * @param int $realLine
      * @param string $genericMessage
-     * @param $message
+     * @param string $message
      * @param array $extra
      * @return int
      * @throws PrestaShopException
@@ -220,10 +249,7 @@ class CollectLogLogger extends AbstractLogger
     protected function insertErrorToDb(string $uid, $type, $file, int $line, $realFile, int $realLine, string $genericMessage, $message, $extra)
     {
         $conn = Db::getInstance();
-        $severity = 1;
-        if (isset(static::SEVERITIES[$type])) {
-            $severity = static::SEVERITIES[$type];
-        }
+        $severity = $this->getSeverity($type);
         if ($conn->insert('collectlogs_logs', [
             'uid' => pSQL($uid),
             'date_add' => date('Y-m-d H:i:s'),
@@ -337,9 +363,9 @@ class CollectLogLogger extends AbstractLogger
     }
 
     /**
-     * @param $entry
-     * @param $cnt
-     * @param $separator
+     * @param array $entry
+     * @param int $cnt
+     * @param string $separator
      *
      * @return string
      */
@@ -366,5 +392,18 @@ class CollectLogLogger extends AbstractLogger
         }
         return false;
 
+    }
+
+    /**
+     * @param string $type
+     *
+     * @return int
+     */
+    protected function getSeverity(string $type)
+    {
+        if (isset(static::SEVERITIES[$type])) {
+            return static::SEVERITIES[$type];
+        }
+        return Settings::SEVERITY_NOTICE;
     }
 }
