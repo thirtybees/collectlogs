@@ -186,7 +186,7 @@ class Settings
     public function getEmailAddresses()
     {
         $strValue = Configuration::getGlobalValue(static::SETTINGS_NEW_ERRORS_EMAIL_ADDRESSES);
-        if ($strValue === false) {
+        if (is_null($strValue) || $strValue === false) {
             return [];
         }
         return explode("\n", $strValue);
