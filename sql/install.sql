@@ -70,3 +70,6 @@ VALUES("/^imagejpeg.*failed to open stream: No such file or directory.*/", "imag
 
 INSERT INTO PREFIX_collectlogs_convert_message(`search`, `replace`)
 VALUES("/^rmdir.*Directory not empty.*/", "rmdir(): Directory not empty");
+
+INSERT INTO PREFIX_collectlogs_convert_message(`search`, `replace`)
+VALUES("/^Undefined array key.*/",  "Undefined array key");
