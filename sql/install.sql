@@ -73,3 +73,6 @@ VALUES("/^rmdir.*Directory not empty.*/", "rmdir(): Directory not empty");
 
 INSERT INTO PREFIX_collectlogs_convert_message(`search`, `replace`)
 VALUES("/^Undefined array key.*/",  "Undefined array key");
+
+INSERT INTO PREFIX_collectlogs_convert_message(`search`, `replace`)
+VALUES("/^unlink.*No such file or directory.*/", "unlink(): No such file or directory");
