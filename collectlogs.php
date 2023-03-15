@@ -35,6 +35,8 @@ class CollectLogs extends Module
     const INPUT_LOG_TO_FILE = 'LOG_TO_FILE';
     const INPUT_LOG_TO_FILE_NEW_ONLY = 'LOG_TO_FILE_NEW_ONLY';
     const INPUT_LOG_TO_FILE_SEVERITY = 'LOG_TO_FILE_SEVERITY';
+    const ACTION_DELETE_ALL = 'ACTION_DELETE_ALL';
+    const ACTION_SUBMIT_SETTINGS = 'ACTION_SUBMIT_SETTINGS';
 
     public function __construct()
     {
@@ -250,6 +252,30 @@ class CollectLogs extends Module
         $cronUrl = $this->context->link->getModuleLink($this->name, 'cron', [
             'secure_key' => $settings->getCronSecret()
         ]);
+        $errorsUrl = $this->context->link->getAdminLink('AdminCollectLogsBackend');
+        $infoForm = [
+            'form' => [
+                'legend' => [
+                    'title' => $this->l('Error logs'),
+                    'icon' => 'icon-list',
+                ],
+                'description' => Translate::ppTags(
+                    $this->l('List of collected errors and warnings can be found in Advaced Parameters > [1]Error Logs[/1]'),
+                    ['<a href="'.$errorsUrl.'">']
+                ),
+                'input' => [],
+                'buttons' => [
+                    [
+                        'type' => 'submit',
+                        'class' => 'pull-right',
+                        'icon' => 'process-icon-delete',
+                        'title' => $this->l('Delete all'),
+                        'name' => static::ACTION_DELETE_ALL,
+                        'js' => 'if (confirm(\''.$this->l('Delete all error logs?').'\')){return true;}else{event.preventDefault();}',
+                    ]
+                ]
+            ],
+        ];
 
         $fileLoggingForm = [
             'form' => [
@@ -316,6 +342,7 @@ class CollectLogs extends Module
                 ],
                 'submit' => [
                     'title' => $this->l('Save'),
+                    'name' => static::ACTION_SUBMIT_SETTINGS,
                 ],
             ],
         ];
@@ -364,6 +391,7 @@ class CollectLogs extends Module
                 ],
                 'submit' => [
                     'title' => $this->l('Save'),
+                    'name' => static::ACTION_SUBMIT_SETTINGS,
                 ],
             ],
         ];
@@ -380,7 +408,7 @@ class CollectLogs extends Module
         $helper->allow_employee_form_lang = (int)Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG');
 
         $helper->identifier = $this->identifier;
-        $helper->submit_action = 'submitSettings';
+        $helper->submit_action = '';
         $helper->currentIndex = $this->context->link->getAdminLink('AdminModules', false).'&configure='.$this->name.'&tab_module='.$this->tab.'&module_name='.$this->name;
         $helper->token = Tools::getAdminTokenLite('AdminModules');
         $helper->languages = $controller->getLanguages();
@@ -393,6 +421,7 @@ class CollectLogs extends Module
         ];
 
         return $helper->generateForm([
+            $infoForm,
             $fileLoggingForm,
             $cronForm,
         ]);
@@ -545,13 +574,23 @@ class CollectLogs extends Module
      */
     protected function processPost()
     {
-        if (Tools::isSubmit('submitSettings')) {
+        /** @var AdminController $controller */
+        $controller = $this->context->controller;
+
+        if (Tools::isSubmit(static::ACTION_DELETE_ALL)) {
+            $db = Db::getInstance();
+            $db->delete('collectlogs_logs');
+            $db->delete('collectlogs_extra');
+            $db->delete('collectlogs_stats');
+            $controller->confirmations[] = $this->l('Error logs deleted');
+        } elseif (Tools::isSubmit(static::ACTION_SUBMIT_SETTINGS)) {
             $settings = $this->getSettings();
             $settings->setSendNewErrorsEmail((bool)Tools::getValue(static::INPUT_SEND_NEW_ERRORS_EMAIL));
             $settings->setEmailAddresses(static::extractValidEmails(Tools::getValue(static::INPUT_EMAIL_ADDRESSES)));
             $settings->setLogToFile((bool)Tools::getValue(static::INPUT_LOG_TO_FILE));
             $settings->setLogToFileNewOnly((bool)Tools::getValue(static::INPUT_LOG_TO_FILE_NEW_ONLY));
             $settings->setLogToFileMinSeverity((int)Tools::getValue(static::INPUT_LOG_TO_FILE_SEVERITY));
+            $controller->confirmations[] = $this->l('Settings saved');
         }
     }
 }

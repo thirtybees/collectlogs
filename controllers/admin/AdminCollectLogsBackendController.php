@@ -202,6 +202,19 @@ class AdminCollectLogsBackendController extends ModuleAdminController
         return '<span class="badge ' . $class . '">' . $value . '</span>';
     }
 
+    public function initToolbar()
+    {
+        $this->page_header_toolbar_btn['settings'] = [
+            'icon' => 'process-icon-cogs',
+            'href' => $this->context->link->getAdminLink('AdminModules', true, [
+                'configure' => $this->module->name,
+                'module_name' => $this->module->name
+            ]),
+            'desc' => $this->l('Settings'),
+        ];
+    }
+
+
     /**
      * @param int $value
      * @return string
