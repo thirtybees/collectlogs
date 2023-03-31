@@ -37,6 +37,7 @@ class CollectLogs extends Module
     const INPUT_LOG_TO_FILE_SEVERITY = 'LOG_TO_FILE_SEVERITY';
     const ACTION_DELETE_ALL = 'ACTION_DELETE_ALL';
     const ACTION_SUBMIT_SETTINGS = 'ACTION_SUBMIT_SETTINGS';
+    const MIN_PHP_VERSION = '7.1';
 
     public function __construct()
     {
@@ -63,11 +64,17 @@ class CollectLogs extends Module
      */
     public function install($createTables = true)
     {
+        $requirements = true;
+        if (! $this->checkPhpVersion()) {
+            $this->_errors[] = sprintf(Tools::displayError('This module requires PHP version %s or newer'), static::MIN_PHP_VERSION);
+            $requirements = false;
+        }
         if (! $this->systemSupportsLogger()) {
             $this->_errors[] = Tools::displayError('Your version of thirty bees does not support logger registration. Please update to never version of thirty bees');
-            return false;
+            $requirements = false;
         }
         return (
+            $requirements &&
             parent::install() &&
             $this->installTab() &&
             $this->installDb($createTables) &&
@@ -221,7 +228,7 @@ class CollectLogs extends Module
      */
     public function hookActionRegisterErrorHandlers()
     {
-        if ($this->systemSupportsLogger()) {
+        if ($this->checkPhpVersion() && $this->systemSupportsLogger()) {
             require_once __DIR__ . '/classes/CollectorLogger.php';
             ServiceLocator::getInstance()->getErrorHandler()->addLogger(new CollectLogLogger($this->getSettings()), true);
         }
@@ -237,6 +244,14 @@ class CollectLogs extends Module
             return method_exists($serviceLocator, 'getErrorHandler');
         }
         return false;
+    }
+
+    /**
+     * @return bool|int
+     */
+    protected function checkPhpVersion()
+    {
+        return version_compare(phpversion(), static::MIN_PHP_VERSION, '>=');
     }
 
     /**
