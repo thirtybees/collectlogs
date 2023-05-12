@@ -92,16 +92,30 @@ class CollectLogLogger extends AbstractLogger
                         'content' => $this->getStackTrace(),
                     ];
                 }
-                $extra[] = [
-                    'label' => 'HTTP Request',
-                    'content' => $_SERVER['REQUEST_METHOD'] . " " . $_SERVER['REQUEST_URI'] . "\n"
-                ];
-                if (isset($_SERVER['HTTP_REFERER'])) {
+                if (strtolower((string)php_sapi_name()) === 'cli') {
+                    $params = "";
+                    global $argv;
+                    if (isset($argv)) {
+                        $params = implode(" ", $argv);
+                    }
                     $extra[] = [
-                        'label' => 'Referrer',
-                        'content' => $_SERVER['HTTP_REFERER'],
+                        'label' => 'CLI Request',
+                        'content' => $params
                     ];
+                } else {
+                    $extra[] = [
+                        'label' => 'HTTP Request',
+                        'content' => $this->getServerParameter('REQUEST_METHOD') . " " . $this->getServerParameter('REQUEST_URI') . "\n"
+                    ];
+                    $referer = $this->getServerParameter('HTTP_REFERER');
+                    if ($referer) {
+                        $extra[] = [
+                            'label' => 'Referrer',
+                            'content' => $referer
+                        ];
+                    }
                 }
+
                 if ($_GET) {
                     $params = "";
                     foreach ($_GET as $param => $value) {
@@ -405,5 +419,18 @@ class CollectLogLogger extends AbstractLogger
             return static::SEVERITIES[$type];
         }
         return Settings::SEVERITY_NOTICE;
+    }
+
+    /**
+     * @param string $name
+     *
+     * @return string|null
+     */
+    protected function getServerParameter($name)
+    {
+        if (array_key_exists($name, $_SERVER)) {
+            return (string)$_SERVER[$name];
+        }
+        return null;
     }
 }
