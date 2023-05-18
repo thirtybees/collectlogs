@@ -19,9 +19,11 @@
 
 use CollectLogsModule\CollectLogLogger;
 use CollectLogsModule\Settings;
+use CollectLogsModule\Severity;
 use Thirtybees\Core\DependencyInjection\ServiceLocator;
 
 require_once __DIR__ . '/classes/Settings.php';
+require_once __DIR__ . '/classes/Severity.php';
 
 /**
  * Class CollectLogs
@@ -35,8 +37,10 @@ class CollectLogs extends Module
     const INPUT_LOG_TO_FILE = 'LOG_TO_FILE';
     const INPUT_LOG_TO_FILE_NEW_ONLY = 'LOG_TO_FILE_NEW_ONLY';
     const INPUT_LOG_TO_FILE_SEVERITY = 'LOG_TO_FILE_SEVERITY';
+    const INPUT_OLDER_THAN = 'OLDER_THAN_DAYS';
     const ACTION_DELETE_ALL = 'ACTION_DELETE_ALL';
     const ACTION_SUBMIT_SETTINGS = 'ACTION_SUBMIT_SETTINGS';
+    const ACTION_DELETE_OLDER_THAN_DAYS = 'ACTION_DELETE_OLDER_THAN_DAYS';
     const MIN_PHP_VERSION = '7.1';
 
     public function __construct()
@@ -268,27 +272,41 @@ class CollectLogs extends Module
             'secure_key' => $settings->getCronSecret()
         ]);
         $errorsUrl = $this->context->link->getAdminLink('AdminCollectLogsBackend');
+        $errorsTable = $this->getErrorsTable();
+        $buttons = null;
+        if ($errorsTable) {
+            $description = Translate::ppTags(
+                $this->l('List of collected errors and warnings can be found in Advaced Parameters > [1]Error Logs[/1]'),
+                ['<a href="'.$errorsUrl.'">']
+            );
+            $buttons = [
+                [
+                    'type' => 'submit',
+                    'class' => 'pull-right',
+                    'icon' => 'process-icon-delete',
+                    'title' => $this->l('Delete all'),
+                    'name' => static::ACTION_DELETE_ALL,
+                    'js' => 'if (confirm(\''.$this->l('Delete all error logs?').'\')){return true;}else{event.preventDefault();}',
+                ]
+            ];
+        } else {
+            $description = null;
+        }
         $infoForm = [
             'form' => [
                 'legend' => [
                     'title' => $this->l('Error logs'),
                     'icon' => 'icon-list',
                 ],
-                'description' => Translate::ppTags(
-                    $this->l('List of collected errors and warnings can be found in Advaced Parameters > [1]Error Logs[/1]'),
-                    ['<a href="'.$errorsUrl.'">']
-                ),
-                'input' => [],
-                'buttons' => [
+                'description' => $description,
+                'input' => [
                     [
-                        'type' => 'submit',
-                        'class' => 'pull-right',
-                        'icon' => 'process-icon-delete',
-                        'title' => $this->l('Delete all'),
-                        'name' => static::ACTION_DELETE_ALL,
-                        'js' => 'if (confirm(\''.$this->l('Delete all error logs?').'\')){return true;}else{event.preventDefault();}',
+                        'name' => 'errors_table',
+                        'type' => 'errors_table',
+                        'errorTypes' => $errorsTable,
                     ]
-                ]
+                ],
+                'buttons' => $buttons
             ],
         ];
 
@@ -346,10 +364,10 @@ class CollectLogs extends Module
                             'id' => 'severity',
                             'name' => 'name',
                             'query' => [
-                                [ 'severity' => Settings::SEVERITY_ERROR, 'name' => $this->l('Error') ],
-                                [ 'severity' => Settings::SEVERITY_WARNING, 'name' => $this->l('Warning') ],
-                                [ 'severity' => Settings::SEVERITY_DEPRECATION, 'name' => $this->l('Deprecation') ],
-                                [ 'severity' => Settings::SEVERITY_NOTICE, 'name' => $this->l('Notice') ],
+                                [ 'severity' => Severity::SEVERITY_ERROR, 'name' => Severity::getSeverityName(Severity::SEVERITY_ERROR) ],
+                                [ 'severity' => Severity::SEVERITY_WARNING, 'name' => Severity::getSeverityName(Severity::SEVERITY_WARNING) ],
+                                [ 'severity' => Severity::SEVERITY_DEPRECATION, 'name' => Severity::getSeverityName(Severity::SEVERITY_DEPRECATION) ],
+                                [ 'severity' => Severity::SEVERITY_NOTICE, 'name' => Severity::getSeverityName(Severity::SEVERITY_NOTICE) ],
                             ]
                         ],
                     ],
@@ -593,11 +611,12 @@ class CollectLogs extends Module
         $controller = $this->context->controller;
 
         if (Tools::isSubmit(static::ACTION_DELETE_ALL)) {
-            $db = Db::getInstance();
-            $db->delete('collectlogs_logs');
-            $db->delete('collectlogs_extra');
-            $db->delete('collectlogs_stats');
-            $controller->confirmations[] = $this->l('Error logs deleted');
+            $total = $this->deleteAll();
+            $this->setRedirectionAfterDeletion($controller, $total);
+        } elseif (Tools::isSubmit(static::ACTION_DELETE_OLDER_THAN_DAYS)) {
+            $olderThan = (int)Tools::getValue(static::INPUT_OLDER_THAN);
+            $total = $this->deleteOlderThan($olderThan);
+            $this->setRedirectionAfterDeletion($controller, $total);
         } elseif (Tools::isSubmit(static::ACTION_SUBMIT_SETTINGS)) {
             $settings = $this->getSettings();
             $settings->setSendNewErrorsEmail((bool)Tools::getValue(static::INPUT_SEND_NEW_ERRORS_EMAIL));
@@ -607,5 +626,95 @@ class CollectLogs extends Module
             $settings->setLogToFileMinSeverity((int)Tools::getValue(static::INPUT_LOG_TO_FILE_SEVERITY));
             $controller->confirmations[] = $this->l('Settings saved');
         }
+    }
+
+    /**
+     * @return array
+     *
+     * @throws PrestaShopException
+     */
+    protected function getErrorsTable()
+    {
+        $conn = Db::getInstance();
+        $sql = (new DbQuery())
+            ->select('e.type, e.severity, COUNT(1) as cnt')
+            ->from('collectlogs_logs', 'e')
+            ->orderBy('e.severity DESC, e.type ASC')
+            ->groupBy('e.type, e.severity');
+        return array_map(function($row) {
+            $row['badge'] = Severity::getSeverityBadge($row['severity']);
+            $row['link'] = Context::getContext()->link->getAdminLink('AdminCollectLogsBackend', true, [], [
+                'type' => $row['type']
+            ]);
+            return $row;
+        }, $conn->getArray($sql));
+    }
+
+    /**
+     * @param int $olderThan
+     *
+     * @return int
+     *
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     */
+    protected function deleteOlderThan($olderThan)
+    {
+        $olderThan = (int)$olderThan;
+        $db = Db::getInstance();
+        $sql = (new DbQuery())
+            ->select('DISTINCT l.id_collectlogs_logs as id')
+            ->from('collectlogs_logs', 'l')
+            ->innerJoin('collectlogs_stats', 's', '(s.id_collectlogs_logs = l.id_collectlogs_logs)')
+            ->groupBy('l.id_collectlogs_logs')
+            ->having('COALESCE(DATEDIFF(NOW(), MAX(s.`dimension`)), 0) >= ' . $olderThan);
+        $ids = array_filter(array_map('intval', array_column($db->getArray($sql), 'id')));
+        if ($ids) {
+            $imploded = implode(',', $ids);
+            $where = "id_collectlogs_logs IN ($imploded)";
+            $db->delete('collectlogs_logs', $where);
+            $db->delete('collectlogs_extra', $where);
+            $db->delete('collectlogs_stats', $where);
+        }
+        return count($ids);
+    }
+
+    /**
+     * @return int
+     *
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     */
+    protected function deleteAll()
+    {
+        $db = Db::getInstance();
+        $cnt = (int)$db->getValue((new DbQuery())->select("COUNT(1)")->from('collectlogs_logs'));
+        $db->delete('collectlogs_logs');
+        $db->delete('collectlogs_extra');
+        $db->delete('collectlogs_stats');
+        return $cnt;
+    }
+
+    /**
+     * @param AdminController $controller
+     * @param int $total
+     *
+     * @return void
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     */
+    protected function setRedirectionAfterDeletion($controller, $total)
+    {
+        $total = (int)$total;
+        $link = $this->context->link;
+        if ($total) {
+            $controller->confirmations[] = sprintf($this->l('%s error logs deleted'), $total);
+        } else {
+            $controller->warnings[] = $this->l('No error log deleted');
+        }
+        $controller->setRedirectAfter($link->getAdminLink('AdminModules', true, [
+            'configure' => 'collectlogs',
+            'module_name' => 'collectlogs',
+        ]));
     }
 }

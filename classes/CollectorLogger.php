@@ -29,15 +29,6 @@ use Throwable;
 
 class CollectLogLogger extends AbstractLogger
 {
-    const SEVERITIES = [
-        'Fatal error' => Settings::SEVERITY_ERROR,
-        'Warning' => Settings::SEVERITY_WARNING,
-        'Notice' => Settings::SEVERITY_NOTICE,
-        'Deprecation' => Settings::SEVERITY_DEPRECATION,
-        'Unknown error' => Settings::SEVERITY_NOTICE,
-        'Exception' => Settings::SEVERITY_ERROR,
-    ];
-
     /**
      * @var Settings
      */
@@ -205,7 +196,7 @@ class CollectLogLogger extends AbstractLogger
             return;
         }
 
-        $severity = $this->getSeverity($type);
+        $severity = Severity::getSeverity($type);
         if ($severity < $this->settings->getLogToFileMinSeverity()) {
             return;
         }
@@ -263,7 +254,7 @@ class CollectLogLogger extends AbstractLogger
     protected function insertErrorToDb(string $uid, $type, $file, int $line, $realFile, int $realLine, string $genericMessage, $message, $extra)
     {
         $conn = Db::getInstance();
-        $severity = $this->getSeverity($type);
+        $severity = Severity::getSeverity($type);
         if ($conn->insert('collectlogs_logs', [
             'uid' => pSQL($uid),
             'date_add' => date('Y-m-d H:i:s'),
@@ -406,19 +397,6 @@ class CollectLogLogger extends AbstractLogger
         }
         return false;
 
-    }
-
-    /**
-     * @param string $type
-     *
-     * @return int
-     */
-    protected function getSeverity(string $type)
-    {
-        if (isset(static::SEVERITIES[$type])) {
-            return static::SEVERITIES[$type];
-        }
-        return Settings::SEVERITY_NOTICE;
     }
 
     /**

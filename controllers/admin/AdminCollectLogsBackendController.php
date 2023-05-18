@@ -1,4 +1,7 @@
 <?php
+
+use CollectLogsModule\Severity;
+
 /**
  * Copyright (C) 2022-2022 thirty bees
  *
@@ -19,15 +22,10 @@
 
 class AdminCollectLogsBackendController extends ModuleAdminController
 {
-    /** @var CollectLogs */
+    /**
+     * @var CollectLogs
+     */
     public $module;
-
-    const SEVERITIES = [
-        1 => 'badge-info',
-        2 => 'badge-warning',
-        3 => 'badge-danger',
-        4 => 'badge-critical',
-    ];
 
     /**
      * AdminCollectLogsBackendController constructor.
@@ -198,10 +196,16 @@ class AdminCollectLogsBackendController extends ModuleAdminController
      */
     public function displayType($value, $row)
     {
-        $class = static::SEVERITIES[$row['severity']] ?? 'badge-info';
+        $class = Severity::getSeverityBadge($row['severity']);
         return '<span class="badge ' . $class . '">' . $value . '</span>';
     }
 
+    /**
+     * @return void
+     *
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     */
     public function initToolbar()
     {
         $this->page_header_toolbar_btn['settings'] = [

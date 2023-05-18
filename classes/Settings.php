@@ -18,11 +18,6 @@ class Settings
     const SETTINGS_LOG_TO_FILE_NEW_ONLY = 'COLLECTLOGS_LOG_TO_FILE_NEW_ONLY';
     const SETTINGS_LOG_TO_FILE_SEVERITY = 'COLLECTLOGS_LOG_TO_FILE_SEVERITY';
 
-    const SEVERITY_ERROR = 4;
-    const SEVERITY_WARNING = 3;
-    const SEVERITY_DEPRECATION = 2;
-    const SEVERITY_NOTICE = 1;
-
     /**
      * @return bool
      */
@@ -75,21 +70,6 @@ class Settings
     }
 
     /**
-     * @param int $level
-     *
-     * @return bool
-     */
-    protected static function isSeverityLevel($level)
-    {
-        return in_array((int)$level, [
-            static::SEVERITY_ERROR,
-            static::SEVERITY_WARNING,
-            static::SEVERITY_DEPRECATION,
-            static::SEVERITY_NOTICE,
-        ]);
-    }
-
-    /**
      * @return int
      *
      * @throws PrestaShopException
@@ -97,8 +77,8 @@ class Settings
     public function getLogToFileMinSeverity()
     {
         $value = (int)Configuration::getGlobalValue(static::SETTINGS_LOG_TO_FILE_SEVERITY);
-        if (!static::isSeverityLevel($value)) {
-            return $this->setLogToFileMinSeverity(Settings::SEVERITY_DEPRECATION);
+        if (! Severity::isSeverityLevel($value)) {
+            return $this->setLogToFileMinSeverity(Severity::SEVERITY_DEPRECATION);
         }
         return $value;
     }
@@ -112,8 +92,8 @@ class Settings
     public function setLogToFileMinSeverity($value)
     {
         $value = (int)$value;
-        if (!static::isSeverityLevel($value)) {
-            $value = Settings::SEVERITY_DEPRECATION;
+        if (! Severity::isSeverityLevel($value)) {
+            $value = Severity::SEVERITY_DEPRECATION;
         }
         Configuration::updateGlobalValue(static::SETTINGS_LOG_TO_FILE_SEVERITY, $value);
         return $value;
