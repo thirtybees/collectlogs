@@ -17,7 +17,8 @@
  * @license   Academic Free License (AFL 3.0)
  */
 
-use CollectLogsModule\CollectLogLogger;
+use CollectLogsModule\Logger;
+use CollectLogsModule\PsrLogger;
 use CollectLogsModule\Settings;
 use CollectLogsModule\Severity;
 use Thirtybees\Core\DependencyInjection\ServiceLocator;
@@ -233,8 +234,15 @@ class CollectLogs extends Module
     public function hookActionRegisterErrorHandlers()
     {
         if ($this->checkPhpVersion() && $this->systemSupportsLogger()) {
-            require_once __DIR__ . '/classes/CollectorLogger.php';
-            ServiceLocator::getInstance()->getErrorHandler()->addLogger(new CollectLogLogger($this->getSettings()), true);
+            require_once(__DIR__ . '/classes/Logger.php');
+            $errorHandler = ServiceLocator::getInstance()->getErrorHandler();
+            if (defined('Thirtybees\Core\Error\ErrorHandler::LEVEL_DEBUG')) {
+                $errorHandler->addLogger(new Logger($this->getSettings()), true);
+            } else {
+                // Special logger version for thirty bees 1.4 - it expects LoggerInterface
+                require_once(__DIR__ . '/classes/PsrLogger.php');
+                $errorHandler->addLogger(new PsrLogger($this->getSettings()), true);
+            }
         }
     }
 

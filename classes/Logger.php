@@ -23,11 +23,14 @@ use Context;
 use Db;
 use DbQuery;
 use PrestaShopException;
-use Psr\Log\AbstractLogger;
 use Thirtybees\Core\Error\ErrorUtils;
 use Throwable;
 
-class CollectLogLogger extends AbstractLogger
+if (! defined('_TB_VERSION_')) {
+    exit();
+}
+
+class Logger
 {
     /**
      * @var Settings
@@ -47,9 +50,10 @@ class CollectLogLogger extends AbstractLogger
         $this->settings = $settings;
     }
 
-
     /**
-     * @param int $level
+     * Log message
+     *
+     * @param string $level
      * @param string $message
      * @param array $context
      * @return void
@@ -335,8 +339,8 @@ class CollectLogLogger extends AbstractLogger
                 $type = $trace['type'] ?? '';
                 $function = $trace['function'] ?? '';
                 if (! $found) {
-                    if ($class !== 'CollectLogsModule\CollectLogLogger' &&
-                        $class !== 'Psr\Log\AbstractLogger' &&
+                    if ($class !== 'CollectLogsModule\Logger' &&
+                        $class !== 'CollectLogsModule\PsrLogger' &&
                         $class !== 'Thirtybees\Core\Error\ErrorHandlerCore'
                     ) {
                         $found = true;
@@ -411,4 +415,118 @@ class CollectLogLogger extends AbstractLogger
         }
         return null;
     }
+
+    /**
+     * System is unusable.
+     *
+     * @param string  $message
+     * @param array $context
+     *
+     * @return void
+     */
+    public function emergency($message, array $context = []): void
+    {
+        $this->log('emergency', $message, $context);
+    }
+
+    /**
+     * Action must be taken immediately.
+     *
+     * Example: Entire website down, database unavailable, etc. This should
+     * trigger the SMS alerts and wake you up.
+     *
+     * @param string  $message
+     * @param array $context
+     *
+     * @return void
+     */
+    public function alert($message, array $context = []): void
+    {
+        $this->log('alert', $message, $context);
+    }
+
+    /**
+     * Critical conditions.
+     *
+     * Example: Application component unavailable, unexpected exception.
+     *
+     * @param string  $message
+     * @param array $context
+     *
+     * @return void
+     */
+    public function critical($message, array $context = []): void
+    {
+        $this->log('critical', $message, $context);
+    }
+
+    /**
+     * Runtime errors that do not require immediate action but should typically
+     * be logged and monitored.
+     *
+     * @param string  $message
+     * @param array $context
+     *
+     * @return void
+     */
+    public function error($message, array $context = []): void
+    {
+        $this->log('error', $message, $context);
+    }
+
+    /**
+     * Exceptional occurrences that are not errors.
+     *
+     * @param string  $message
+     * @param array $context
+     *
+     * @return void
+     */
+    public function warning($message, array $context = []): void
+    {
+        $this->log('warning', $message, $context);
+    }
+
+
+    /**
+     * Normal but significant events.
+     *
+     * @param string  $message
+     * @param array $context
+     *
+     * @return void
+     */
+    public function notice($message, array $context = []): void
+    {
+        $this->log('notice', $message, $context);
+    }
+
+    /**
+     * Interesting events.
+     *
+     * Example: User logs in, SQL logs.
+     *
+     * @param string  $message
+     * @param array $context
+     *
+     * @return void
+     */
+    public function info($message, array $context = []): void
+    {
+        $this->log('info', $message, $context);
+    }
+
+    /**
+     * Detailed debug information.
+     *
+     * @param string  $message
+     * @param array $context
+     *
+     * @return void
+     */
+    public function debug($message, array $context = []): void
+    {
+        $this->log('debug', $message, $context);
+    }
+
 }
