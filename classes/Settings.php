@@ -10,7 +10,7 @@ use Tools;
 
 class Settings
 {
-    const SETTINGS_CRON_SECRET = 'COLLECTLOGS_CRON_SECRET';
+    const SETTINGS_SECRET = 'COLLECTLOGS_CRON_SECRET';
     const SETTINGS_LAST_CRON_EXECUTION = 'COLLECTLOGS_CRON_TS';
     const SETTINGS_SEND_NEW_ERRORS_EMAIL = 'COLLECTLOGS_SEND_NEW_ERRORS_EMAIL';
     const SETTINGS_NEW_ERRORS_EMAIL_ADDRESSES = 'COLLECTLOGS_NEW_ERRORS_EMAIL';
@@ -41,12 +41,12 @@ class Settings
      * @return string
      * @throws PrestaShopException
      */
-    public function getCronSecret()
+    public function getSecret()
     {
-        $value = Configuration::getGlobalValue(static::SETTINGS_CRON_SECRET);
+        $value = Configuration::getGlobalValue(static::SETTINGS_SECRET);
         if (!$value) {
             $value = Tools::passwdGen(32);
-            Configuration::updateGlobalValue(static::SETTINGS_CRON_SECRET, $value);
+            Configuration::updateGlobalValue(static::SETTINGS_SECRET, $value);
         }
         return $value;
     }
@@ -217,6 +217,17 @@ class Settings
         $value = (bool)$value;
         Configuration::updateGlobalValue($key, (int)$value);
         return $value;
+    }
+
+    /**
+     * @param string $email
+     *
+     * @return string
+     * @throws PrestaShopException
+     */
+    public function getUnsubscribeSecret($email)
+    {
+        return md5($email . $this->getSecret());
     }
 
 

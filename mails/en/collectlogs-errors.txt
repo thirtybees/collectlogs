@@ -1,3 +1,5 @@
 New errors detected in {shop_name}:
 
 {errorsTxt}
+
+Unsubscribe: {unsubscribeUrl}

@@ -42,6 +42,7 @@ class CollectLogs extends Module
     const ACTION_DELETE_ALL = 'ACTION_DELETE_ALL';
     const ACTION_SUBMIT_SETTINGS = 'ACTION_SUBMIT_SETTINGS';
     const ACTION_DELETE_OLDER_THAN_DAYS = 'ACTION_DELETE_OLDER_THAN_DAYS';
+    const ACTION_UNSUBSCRIBE = 'unsubscribe';
     const MIN_PHP_VERSION = '7.1';
 
     public function __construct()
@@ -58,7 +59,7 @@ class CollectLogs extends Module
         $this->description = $this->l('Debugging module that collects PHP logs');
         $this->ps_versions_compliancy = ['min' => '1.6', 'max' => '1.6.999'];
         $this->tb_min_version = '1.4.0';
-        $this->controllers = ['front'];
+        $this->controllers = ['cron', 'api'];
     }
 
     /**
@@ -277,7 +278,7 @@ class CollectLogs extends Module
 
         $settings = $this->getSettings();
         $cronUrl = $this->context->link->getModuleLink($this->name, 'cron', [
-            'secure_key' => $settings->getCronSecret()
+            'secure_key' => $settings->getSecret()
         ]);
         $errorsUrl = $this->context->link->getAdminLink('AdminCollectLogsBackend');
         $errorsTable = $this->getErrorsTable();
@@ -561,6 +562,12 @@ class CollectLogs extends Module
         echo $errorsTxt . "\n";
 
         foreach ($emailAddresses as $emailAddress) {
+            $unsubscribeUrl = $this->context->link->getModuleLink($this->name, 'api', [
+                'action' => static::ACTION_UNSUBSCRIBE,
+                'email' => $emailAddress,
+                'secret' => $settings->getUnsubscribeSecret($emailAddress),
+            ]);
+
             Mail::send(
                 Configuration::get('PS_LANG_DEFAULT'),
                 'collectlogs-errors',
@@ -568,6 +575,7 @@ class CollectLogs extends Module
                 [
                     '{errorsTxt}' => $errorsTxt,
                     '{errorsHtml}' => $errorsHtml,
+                    '{unsubscribeUrl}' => $unsubscribeUrl,
                 ],
                 $emailAddress,
                 null,

@@ -44,7 +44,7 @@ class CollectLogsCronModuleFrontController extends ModuleFrontController
      */
     public function initContent()
     {
-        if (Tools::getValue('secure_key') == $this->module->getSettings()->getCronSecret()) {
+        if (Tools::getValue('secure_key') === $this->module->getSettings()->getSecret()) {
             @set_time_limit(0);
             $interactive = !!Tools::getValue('sync');
             if (! $interactive) {
