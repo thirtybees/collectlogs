@@ -76,3 +76,6 @@ VALUES("/^Undefined array key.*/",  "Undefined array key");
 
 INSERT INTO PREFIX_collectlogs_convert_message(`search`, `replace`)
 VALUES("/^unlink.*No such file or directory.*/", "unlink(): No such file or directory");
+
+INSERT INTO PREFIX_collectlogs_convert_message(`search`, `replace`)
+VALUES("/^DOMDocument::loadHTML.*$/", "DOMDocument::loadHTML: Parse Error");
