@@ -17,6 +17,7 @@ class Settings
     const SETTINGS_LOG_TO_FILE = 'COLLECTLOGS_LOG_TO_FILE';
     const SETTINGS_LOG_TO_FILE_NEW_ONLY = 'COLLECTLOGS_LOG_TO_FILE_NEW_ONLY';
     const SETTINGS_LOG_TO_FILE_SEVERITY = 'COLLECTLOGS_LOG_TO_FILE_SEVERITY';
+    const SETTINGS_LAST_SYNC = 'COLLECTLOGS_SYNC_TS';
 
     /**
      * @return bool
@@ -67,6 +68,24 @@ class Settings
     public function updateCronLastExec()
     {
         Configuration::updateGlobalValue(static::SETTINGS_LAST_CRON_EXECUTION, time() - 1);
+    }
+
+    /**
+     * @return int
+     * @throws PrestaShopException
+     */
+    public function getLastSync()
+    {
+        return (int)Configuration::getGlobalValue(static::SETTINGS_LAST_SYNC);
+    }
+
+    /**
+     * @return void
+     * @throws PrestaShopException
+     */
+    public function updateLastSync(int $ts)
+    {
+        Configuration::updateGlobalValue(static::SETTINGS_LAST_SYNC, $ts);
     }
 
     /**

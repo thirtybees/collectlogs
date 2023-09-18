@@ -38,16 +38,18 @@ class Logger
     protected $settings;
 
     /**
-     * @var array
+     * @var TransformMessage
      */
-    protected $messageConvertRegexp = null;
+    protected $transformMessage;
 
     /**
      * @param Settings $settings
+     * @param TransformMessage $transformMessage
      */
-    public function __construct(Settings $settings)
+    public function __construct(Settings $settings, TransformMessage $transformMessage)
     {
         $this->settings = $settings;
+        $this->transformMessage = $transformMessage;
     }
 
     /**
@@ -64,13 +66,13 @@ class Logger
             $type = $context['type'] ?? 'unknown';
             $file = $context['errfile'] ?? 'unknown';
             $line = (int)($context['errline'] ?? 0);
-            $message = $context['errstr'] ?? $message;
+            $message = (string)($context['errstr'] ?? $message);
             $extra = $context['extra'] ?? [];
             $realFile = $context['realFile'] ?? '';
             $realLine = (int)($context['realLine'] ?? 0);
 
             $hasRealFile = $realFile && $realLine;
-            $genericMessage = $this->generifyMessage($message);
+            $genericMessage = $this->transformMessage->transform($message);
             if ($hasRealFile) {
                 $uid = $this->calculateUID($type, $realFile, $realLine, $genericMessage);
             } else {
@@ -148,19 +150,6 @@ class Logger
         } catch (Throwable $t) {
             trigger_error("collectlogs: failed to log error: " . $t->getMessage(), E_USER_WARNING);
         }
-    }
-
-    /**
-     * @param string $message
-     * @return string
-     * @throws PrestaShopException
-     */
-    protected function generifyMessage($message)
-    {
-        foreach ($this->getMessageConvertors() as $search => $replace) {
-            $message = preg_replace($search, $replace, $message);
-        }
-        return $message;
     }
 
     /**
@@ -298,27 +287,6 @@ class Logger
             VALUES($errorId, '$dimension', 1)
             ON DUPLICATE KEY UPDATE `count` = `count` + 1";
         $conn->execute($sql);
-    }
-
-    /**
-     * @return array
-     * @throws PrestaShopException
-     */
-    protected function getMessageConvertors()
-    {
-        if (is_null($this->messageConvertRegexp)) {
-            $conn = Db::getInstance();
-            $this->messageConvertRegexp = [];
-            $rows = $conn->getArray((new DbQuery())
-                ->select('`search` as s, `replace` as r' )
-                ->from('collectlogs_convert_message')
-                ->orderBy('id_collectlogs_convert_message')
-            );
-            foreach ($rows as $row) {
-                $this->messageConvertRegexp[$row['s']] = $row['r'];
-            }
-        }
-        return $this->messageConvertRegexp;
     }
 
     /**

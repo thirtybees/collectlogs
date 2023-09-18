@@ -1,0 +1,1 @@
+ALTER TABLE `PREFIX_collectlogs_convert_message` ADD `id_remote` INT(11) UNSIGNED NULL;

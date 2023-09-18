@@ -21,10 +21,14 @@ use CollectLogsModule\Logger;
 use CollectLogsModule\PsrLogger;
 use CollectLogsModule\Settings;
 use CollectLogsModule\Severity;
+use CollectLogsModule\TransformMessage;
+use CollectLogsModule\TransformMessageImpl;
 use Thirtybees\Core\DependencyInjection\ServiceLocator;
 
 require_once __DIR__ . '/classes/Settings.php';
 require_once __DIR__ . '/classes/Severity.php';
+require_once __DIR__ . '/classes/TransformMessage.php';
+require_once __DIR__ . '/classes/TransformMessageImpl.php';
 
 /**
  * Class CollectLogs
@@ -49,7 +53,7 @@ class CollectLogs extends Module
     {
         $this->name = 'collectlogs';
         $this->tab = 'administaration';
-        $this->version = '1.2.2';
+        $this->version = '1.3.0';
         $this->author = 'thirty bees';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -238,12 +242,13 @@ class CollectLogs extends Module
             require_once(__DIR__ . '/classes/Logger.php');
             $errorHandler = ServiceLocator::getInstance()->getErrorHandler();
             if (defined('Thirtybees\Core\Error\ErrorHandler::LEVEL_DEBUG')) {
-                $errorHandler->addLogger(new Logger($this->getSettings()), true);
+                $logger = new Logger($this->getSettings(), $this->getTransformMessage());
             } else {
                 // Special logger version for thirty bees 1.4 - it expects LoggerInterface
                 require_once(__DIR__ . '/classes/PsrLogger.php');
-                $errorHandler->addLogger(new PsrLogger($this->getSettings()), true);
+                $logger = new PsrLogger($this->getSettings(), $this->getTransformMessage());
             }
+            $errorHandler->addLogger($logger, true);
         }
     }
 
@@ -276,6 +281,7 @@ class CollectLogs extends Module
     {
         $this->processPost();
 
+        $this->getTransformMessage()->synchronize();
         $settings = $this->getSettings();
         $cronUrl = $this->context->link->getModuleLink($this->name, 'cron', [
             'secure_key' => $settings->getSecret()
@@ -732,5 +738,17 @@ class CollectLogs extends Module
             'configure' => 'collectlogs',
             'module_name' => 'collectlogs',
         ]));
+    }
+
+    /**
+     * @return TransformMessage
+     */
+    public function getTransformMessage()
+    {
+        static $transform = null;
+        if ($transform === null) {
+            $transform = new TransformMessageImpl($this->getSettings());
+        }
+        return $transform;
     }
 }

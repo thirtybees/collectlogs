@@ -101,6 +101,8 @@ class AdminCollectLogsBackendController extends ModuleAdminController
                 'type' => 'datetime',
             ],
         ];
+
+        $this->module->getTransformMessage()->synchronize();
     }
 
     /**
