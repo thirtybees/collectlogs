@@ -9,6 +9,7 @@ use PrestaShopException;
 use Thirtybees\Core\DependencyInjection\ServiceLocator;
 use Thirtybees\Core\Error\ErrorUtils;
 use Throwable;
+use Tools;
 
 class TransformMessageImpl implements TransformMessage
 {
@@ -54,7 +55,7 @@ class TransformMessageImpl implements TransformMessage
         try {
             $now = time();
             $lastSync = $this->settings->getLastSync();
-            if (($now - $lastSync) < 24 * 60 * 60) {
+            if (($now - $lastSync) < 8 * 60 * 60) {
                 return;
             }
             $this->settings->updateLastSync($now);
@@ -148,11 +149,30 @@ class TransformMessageImpl implements TransformMessage
      */
     protected function getHeaders()
     {
-        if (method_exists('Configuration', 'getServerTrackingId')) {
-            return [
-                'X-SID' => Configuration::getServerTrackingId()
-            ];
+        return [
+            'X-SID' => static::getSID()
+        ];
+    }
+
+    /**
+     * @return string
+     *
+     * @throws PrestaShopException
+     */
+    protected static function getSID()
+    {
+        static $sid = null;
+        if (is_null($sid)) {
+            if (method_exists('Configuration', 'getServerTrackingId')) {
+                $sid = Configuration::getServerTrackingId();
+            } else {
+                $sid = Configuration::getGlobalValue('TB_TRACKING_UID');
+                if (!$sid) {
+                    $sid = Tools::passwdGen(40);
+                    Configuration::updateGlobalValue('TB_TRACKING_UID', $sid);
+                }
+            }
         }
-        return [];
+        return $sid;
     }
 }

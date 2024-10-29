@@ -486,6 +486,9 @@ class CollectLogs extends Module
         if (! headers_sent()) {
             header('Content-Type: text/plain');
         }
+
+        $this->getTransformMessage()->synchronize();
+
         if (! $settings->getSendNewErrorsEmail()) {
             echo "Sending emails with new errors is disabled in module settings, exiting...\n";
             return;
