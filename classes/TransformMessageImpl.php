@@ -13,6 +13,8 @@ use Tools;
 
 class TransformMessageImpl implements TransformMessage
 {
+    const SYNC_INTERVAL = 8 * 60 * 60;
+
     /**
      * @var Settings
      */
@@ -48,14 +50,17 @@ class TransformMessageImpl implements TransformMessage
     }
 
     /**
+     * @param bool $force
+     *
      * @return void
      */
-    public function synchronize()
+    public function synchronize(bool $force = false)
     {
         try {
             $now = time();
             $lastSync = $this->settings->getLastSync();
-            if (($now - $lastSync) < 8 * 60 * 60) {
+            $timeSinceLastSync = (int)$now - $lastSync;
+            if (!$force && ($timeSinceLastSync < static::SYNC_INTERVAL)) {
                 return;
             }
             $this->settings->updateLastSync($now);

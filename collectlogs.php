@@ -637,10 +637,12 @@ class CollectLogs extends Module
 
         if (Tools::isSubmit(static::ACTION_DELETE_ALL)) {
             $total = $this->deleteAll();
+            $this->getTransformMessage()->synchronize(true);
             $this->setRedirectionAfterDeletion($controller, $total);
         } elseif (Tools::isSubmit(static::ACTION_DELETE_OLDER_THAN_DAYS)) {
             $olderThan = (int)Tools::getValue(static::INPUT_OLDER_THAN);
             $total = $this->deleteOlderThan($olderThan);
+            $this->getTransformMessage()->synchronize(true);
             $this->setRedirectionAfterDeletion($controller, $total);
         } elseif (Tools::isSubmit(static::ACTION_SUBMIT_SETTINGS)) {
             $settings = $this->getSettings();
@@ -649,6 +651,7 @@ class CollectLogs extends Module
             $settings->setLogToFile((bool)Tools::getValue(static::INPUT_LOG_TO_FILE));
             $settings->setLogToFileNewOnly((bool)Tools::getValue(static::INPUT_LOG_TO_FILE_NEW_ONLY));
             $settings->setLogToFileMinSeverity((int)Tools::getValue(static::INPUT_LOG_TO_FILE_SEVERITY));
+            $this->getTransformMessage()->synchronize(true);
             $controller->confirmations[] = $this->l('Settings saved');
         }
     }

@@ -6,9 +6,11 @@ interface TransformMessage
 {
 
     /**
+     * @param bool $force
+     *
      * @return void
      */
-    public function synchronize();
+    public function synchronize(bool $force = false);
 
     /**
      * @param string $message
