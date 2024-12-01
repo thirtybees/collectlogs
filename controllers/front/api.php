@@ -38,7 +38,7 @@ class CollectLogsApiModuleFrontController extends ModuleFrontController
                 $this->unsubscribe();
                 break;
             default:
-                $this->displayError($this->l("Invalid action"));
+                $this->displayError($this->l('Invalid action'));
 
         }
     }
