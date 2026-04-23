@@ -24,6 +24,7 @@ use CollectLogsModule\Severity;
 use CollectLogsModule\TransformMessage;
 use CollectLogsModule\TransformMessageImpl;
 use Thirtybees\Core\DependencyInjection\ServiceLocator;
+use Thirtybees\Core\Error\ErrorUtils;
 
 require_once __DIR__ . '/classes/Settings.php';
 require_once __DIR__ . '/classes/Severity.php';
@@ -53,7 +54,7 @@ class CollectLogs extends Module
     {
         $this->name = 'collectlogs';
         $this->tab = 'administaration';
-        $this->version = '1.4.0';
+        $this->version = '1.4.1';
         $this->author = 'thirty bees';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -88,7 +89,10 @@ class CollectLogs extends Module
             parent::install() &&
             $this->installTab() &&
             $this->installDb($createTables) &&
-            $this->registerHook('actionRegisterErrorHandlers')
+            $this->registerHook([
+                'actionRegisterErrorHandlers',
+                'actionLogCaughtException',
+            ])
         );
     }
 
@@ -250,6 +254,88 @@ class CollectLogs extends Module
             }
             $errorHandler->addLogger($logger, true);
         }
+    }
+
+    /**
+     * Hook handler that allows custom code to report already caught exceptions.
+     *
+     * Expected parameters:
+     * - exception: Throwable
+     * - extra_content: string|array (optional)
+     *
+     * @param array $params
+     *
+     * @return void
+     */
+    public function hookActionLogCaughtException($params)
+    {
+        if (!is_array($params)) {
+            return;
+        }
+        $exception = $params['exception'] ?? null;
+        if (!($exception instanceof Throwable)) {
+            return;
+        }
+        $this->reportCaughtException($exception, $params['extra_content'] ?? null);
+    }
+
+    /**
+     * Reports an exception that was already handled by application code.
+     *
+     * The exception is converted through ErrorUtils::describeException() and
+     * logged through ErrorHandler::logFatalError(), so the same collectlogs
+     * pipeline is used as for uncaught exceptions.
+     *
+     * @param Throwable $exception
+     * @param mixed $extraContent
+     *
+     * @return void
+     */
+    protected function reportCaughtException(Throwable $exception, $extraContent = null)
+    {
+        if (!$this->systemSupportsLogger()) {
+            return;
+        }
+        try {
+            $errorDescription = ErrorUtils::describeException($exception);
+            $extra = $errorDescription->getExtraSections();
+            $extra[] = [
+                'label' => 'Caught exception',
+                'content' => $this->buildCaughtExceptionSection($extraContent),
+            ];
+            $errorDescription->setExtraSections($extra);
+            ServiceLocator::getInstance()->getErrorHandler()->logFatalError($errorDescription);
+        } catch (Throwable $ignored) {
+        }
+    }
+
+    /**
+     * @param mixed $extraContent
+     *
+     * @return string
+     */
+    protected function buildCaughtExceptionSection($extraContent)
+    {
+        $content = 'caught_exception: true';
+        if (is_array($extraContent)) {
+            if (!$extraContent) {
+                return $content;
+            }
+            $content .= "\nextra_content:";
+            foreach ($extraContent as $key => $value) {
+                $label = is_scalar($key) ? (string)$key : 'value';
+                $content .= "\n  [$label]: " . ErrorUtils::displayArgument($value);
+            }
+            return $content;
+        }
+        if ($extraContent !== null) {
+            $text = is_string($extraContent) ? trim($extraContent) : ErrorUtils::displayArgument($extraContent);
+            if ($text !== '') {
+                $content .= "\nextra_content:";
+                $content .= "\n  " . str_replace("\n", "\n  ", $text);
+            }
+        }
+        return $content;
     }
 
     /**
